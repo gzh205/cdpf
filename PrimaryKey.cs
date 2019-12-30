@@ -6,8 +6,7 @@ using System.Threading.Tasks;
 
 namespace cdrf
 {
-    public class Class1
+    public class PrimaryKey:Attribute
     {
-        int aaa;
     }
 }
