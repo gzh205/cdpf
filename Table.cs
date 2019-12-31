@@ -8,6 +8,5 @@ namespace cdrf
 {
     public abstract class Table
     {
-        int aaa;
     }
 }

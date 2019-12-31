@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Data.SqlClient;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace cdrf
 {
@@ -25,6 +26,96 @@ namespace cdrf
             connection.cmd = connection.sqlConn.CreateCommand();
             return connection;
         }
+        /// <summary>
+        /// 自定义select查询的where语句部分,其中select与from均可省略,如不省略,该方法也会自动忽略
+        /// </summary>
+        /// <typeparam name="T">继承自Table类的数据库表类型</typeparam>
+        /// <param name="where">自定义的where语句</param>
+        /// <returns>返回所有符合where语句限定条件的记录</returns>
+        public T[] SelectSome<T>(string where)
+        {
+            if (where == null)
+                where = "";
+            if (where.Contains(where) && !where.Contains("'where'") && !where.Contains("\"where\""))
+            {
+                where = Regex.Replace(where, ".*where", "where");
+            }
+            List<T> table = new List<T>();
+            FieldInfo[] fields = typeof(T).GetFields();
+            PropertyInfo[] properties = typeof(T).GetProperties();
+            this.sql = "select ";
+            string selectStr = "";
+            for (int i = 0; i < fields.Length; i++)
+                selectStr += ","+fields[i].Name;
+            for (int i = 0; i < properties.Length; i++)
+                selectStr += "," + properties[i].Name;
+            this.sql += selectStr.Substring(1) + " from " + typeof(T).Name + where;
+            this.cmd.CommandText = this.sql;
+            this.sqlConn.Open();
+            SqlDataReader sdr = this.cmd.ExecuteReader();
+            fields = null;
+            properties = null;
+            while(sdr.Read())
+            {
+                T t = System.Activator.CreateInstance<T>();
+                FieldInfo[] tfields = t.GetType().GetFields();
+                PropertyInfo[] tproperties = t.GetType().GetProperties();
+                for (int i = 0; i < tfields.Length; i++) 
+                {
+                    tfields[i].SetValue(t, sdr[tfields[i].Name]);
+                }
+                for(int i = 0; i < tproperties.Length; i++)
+                {
+                    tproperties[i].SetValue(t, sdr[tproperties[i].Name]);
+                }
+                table.Add(t);
+            }
+            this.sqlConn.Close();
+            return table.ToArray();
+        }
+        /// <summary>
+        /// 查询数据库中的记录
+        /// </summary>
+        /// <param name="table">某条记录的对象,继承自Table,只要[PrimaryKey]有值即可,其余成员会自动填充完成</param>
+        public void Select(Table table)
+        {
+            FieldInfo[] fields;
+            PropertyInfo[] properties;
+            LinkedList<Node>[] lists = this.getFieldsAndAttributes(table,out fields,out properties);
+            this.sql = "select ";
+            string selectStr = "";
+            string whereStr = "";
+            foreach(Node node in lists[0])
+            {
+                whereStr += " and " + node.value + "=" + node.name;
+            }
+            foreach(Node node in lists[1])
+            {
+                selectStr += "," + node.name;
+            }
+            whereStr = whereStr.Substring(5);
+            selectStr = selectStr.Substring(1);
+            this.sql += selectStr + " from " + table.GetType().Name + " where " + whereStr;
+            this.cmd.CommandText = this.sql;
+            this.sqlConn.Open();
+            SqlDataReader sdr = this.cmd.ExecuteReader();
+            sdr.Read();
+            //int index = 0;
+            for(int i = 0; i < fields.Length; i++)
+            {
+                fields[i].SetValue(table, sdr[fields[i].Name]);
+            }
+            for(int i = 0; i < properties.Length; i++)
+            {
+                properties[i].SetValue(table, sdr[properties[i].Name]);
+            }
+            this.sqlConn.Close();
+        }
+        /// <summary>
+        /// 修改数据库表中的记录
+        /// </summary>
+        /// <param name="table"></param>
+        /// <returns>成功返回true,失败返回false</returns>
         public bool Update(Table table)
         {
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table);
@@ -125,6 +216,50 @@ namespace cdrf
                 else
                     lists[0].AddLast(new Node(property.Name, value));
             }
+            return lists;
+        }
+        /// <summary>
+        /// 查找table表中所有的成员并且输出它们的ID和值,并且获得他们的对象
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="fInfos"></param>
+        /// <param name="pInfos"></param>
+        /// <returns></returns>
+        private LinkedList<Node>[] getFieldsAndAttributes(Table table,out FieldInfo[] fInfos,out PropertyInfo[] pInfos)
+        {
+            List<FieldInfo> datField = new List<FieldInfo>();
+            List<PropertyInfo> datProperty = new List<PropertyInfo>();
+            LinkedList<Node>[] lists = new LinkedList<Node>[2];
+            for (int i = 0; i < lists.Length; i++)
+                lists[i] = new LinkedList<Node>();
+            FieldInfo[] fields = table.GetType().GetFields();
+            PropertyInfo[] properties = table.GetType().GetProperties();
+            foreach (FieldInfo field in fields)
+            {
+                lists[1].AddLast(new Node(field.Name, null));
+                datField.Add(field);
+                if (field.GetCustomAttribute(typeof(PrimaryKey)) != null)
+                {
+                    string value = field.GetValue(table).ToString();
+                    if (field.FieldType.Name == "String" || field.FieldType.Name == "DateTime")
+                        value = "'" + value + "'";
+                    lists[0].AddLast(new Node(field.Name, value));
+                }
+            }
+            foreach (PropertyInfo property in properties)
+            {
+                lists[1].AddLast(new Node(property.Name, null));
+                datProperty.Add(property);
+                if (property.GetCustomAttribute(typeof(PrimaryKey)) != null)
+                {
+                    string value = property.GetValue(table).ToString();
+                    if (property.PropertyType.Name == "String" || property.PropertyType.Name == "DateTime")
+                        value = "'" + value + "'";
+                    lists[0].AddLast(new Node(property.Name, value));
+                }
+            }
+            fInfos = datField.ToArray();
+            pInfos = datProperty.ToArray();
             return lists;
         }
     }
