@@ -6,25 +6,21 @@ using System.Threading.Tasks;
 using System.Data.SqlClient;
 using System.Reflection;
 using System.Text.RegularExpressions;
-
+using System.Threading;
 namespace cdrf
 {
     public class Connection
     {
-        protected SqlConnection sqlConn { get; set; }
+        public SqlConnection sqlConn { get; private set; }
         protected SqlCommand cmd { get; set; }
         public string sql { get; protected set; }
         /// <summary>
-        /// 根据连接字符串创建一个新的Connection对象
+        /// 构造函数，不建议直接调用
         /// </summary>
-        /// <param name="connectionString">连接字符串</param>
-        /// <returns>返回一个Connection对象</returns>
-        public static Connection getSession(string connectionString)
+        /// <param name="sqlConn"></param>
+        public Connection(SqlConnection sqlConn)
         {
-            Connection connection = new Connection();
-            connection.sqlConn = new SqlConnection(connectionString);
-            connection.cmd = connection.sqlConn.CreateCommand();
-            return connection;
+            this.sqlConn = sqlConn;
         }
         /// <summary>
         /// 自定义select查询的where语句部分,其中select与from均可省略,如不省略,该方法也会自动忽略

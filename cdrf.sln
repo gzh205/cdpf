@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cdrf", "cdrf.csproj", "{A40
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CDRFUnitTest", "..\CDRFUnitTest\CDRFUnitTest.csproj", "{57A7149D-013F-4755-833B-8EFC699A27F5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestWnd", "..\TestWnd\TestWnd.csproj", "{CC3B2119-D2B8-4279-ABB8-9AC758F44B93}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{57A7149D-013F-4755-833B-8EFC699A27F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{57A7149D-013F-4755-833B-8EFC699A27F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{57A7149D-013F-4755-833B-8EFC699A27F5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC3B2119-D2B8-4279-ABB8-9AC758F44B93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC3B2119-D2B8-4279-ABB8-9AC758F44B93}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC3B2119-D2B8-4279-ABB8-9AC758F44B93}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC3B2119-D2B8-4279-ABB8-9AC758F44B93}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
