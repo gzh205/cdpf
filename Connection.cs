@@ -9,18 +9,65 @@ using System.Text.RegularExpressions;
 using System.Threading;
 namespace cdrf
 {
-    public class Connection
+    class Connection
     {
-        public SqlConnection sqlConn { get; private set; }
-        protected SqlCommand cmd { get; set; }
-        public string sql { get; protected set; }
+        /// <summary>
+        /// 数据库连接池
+        /// </summary>
+        private static Dictionary<string,string> connections = new Dictionary<string,string>();
+        /// <summary>
+        /// 用于处理线程池的信号量
+        /// </summary>
+        private static Semaphore queueNum = new Semaphore(0,32767);
+        /// <summary>
+        /// 多线程处理
+        /// </summary>
+        private static Queue<Tasks> queue = new Queue<Tasks>();
+        /// <summary>
+        /// 正则表达式常量，用于匹配Database={数据库名}
+        /// </summary>
+        private const string pattern = @"(?<=(Database|database)[\s]*=[\s]*)[^;]+(?=;)";
+        /// <summary>
+        /// 根据连接字符串创建一个新的Connection对象
+        /// </summary>
+        /// <param name="connectionString">连接字符串</param>
+        /// <returns>返回一个Connection对象</returns>
+        public static void addConnection(string connectionString) {
+            SqlConnection conn = new SqlConnection(connectionString);
+            Match mc = Regex.Match(connectionString,pattern);
+            string res = mc.Value;
+            connections.Add(res,connectionString);
+        }
+        /// <summary>
+        /// 根据类型名获取连接
+        /// </summary>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        public static string getConnectionString(Type type) {
+            string[] dat = type.Namespace.Split('.');
+            string ns = dat[dat.Length - 1];
+            string res;
+            try {
+                res = connections[ns];
+            } catch (KeyNotFoundException) {
+                throw new SqlException("找不到与该类型对应命名空间相同的连接字符串索引"+dat[dat.Length-1]);
+            }
+            return res;
+        }
+        public string connectionstring { get; set; }
         /// <summary>
         /// 构造函数，不建议直接调用
         /// </summary>
         /// <param name="sqlConn"></param>
-        public Connection(SqlConnection sqlConn)
+        public Connection(string connectingstring)
         {
-            this.sqlConn = sqlConn;
+            this.connectionstring = connectionstring;
+        }
+        /// <summary>
+        /// 删除对象
+        /// </summary>
+        public void delete() {
+            this.connectionstring = null;
         }
         /// <summary>
         /// 自定义select查询的where语句部分,其中select与from均可省略,如不省略,该方法也会自动忽略
@@ -30,6 +77,8 @@ namespace cdrf
         /// <returns>返回所有符合where语句限定条件的记录</returns>
         public T[] SelectSome<T>(string where)
         {
+            SqlConnection sqlConn = new SqlConnection(connectionstring);
+            SqlCommand cmd = sqlConn.CreateCommand();
             if (where == null)
                 where = "";
             if (where.Contains(where) && !where.Contains("'where'") && !where.Contains("\"where\""))
@@ -39,16 +88,16 @@ namespace cdrf
             List<T> table = new List<T>();
             FieldInfo[] fields = typeof(T).GetFields();
             PropertyInfo[] properties = typeof(T).GetProperties();
-            this.sql = "select ";
+            string sql = "select ";
             string selectStr = "";
             for (int i = 0; i < fields.Length; i++)
                 selectStr += ","+fields[i].Name;
             for (int i = 0; i < properties.Length; i++)
                 selectStr += "," + properties[i].Name;
-            this.sql += selectStr.Substring(1) + " from " + typeof(T).Name + where;
-            this.cmd.CommandText = this.sql;
-            this.sqlConn.Open();
-            SqlDataReader sdr = this.cmd.ExecuteReader();
+            sql += selectStr.Substring(1) + " from " + typeof(T).Name + where;
+            cmd.CommandText = sql;
+            sqlConn.Open();
+            SqlDataReader sdr = cmd.ExecuteReader();
             fields = null;
             properties = null;
             while(sdr.Read())
@@ -66,19 +115,21 @@ namespace cdrf
                 }
                 table.Add(t);
             }
-            this.sqlConn.Close();
+            sqlConn.Close();
             return table.ToArray();
         }
         /// <summary>
         /// 查询数据库中的记录
         /// </summary>
         /// <param name="table">某条记录的对象,继承自Table,只要[PrimaryKey]有值即可,其余成员会自动填充完成</param>
-        public void Select(Table table)
+        public void Select(object table)
         {
+            SqlConnection sqlConn = new SqlConnection(connectionstring);
+            SqlCommand cmd = sqlConn.CreateCommand();
             FieldInfo[] fields;
             PropertyInfo[] properties;
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table,out fields,out properties);
-            this.sql = "select ";
+            string sql = "select ";
             string selectStr = "";
             string whereStr = "";
             foreach(Node node in lists[0])
@@ -91,10 +142,10 @@ namespace cdrf
             }
             whereStr = whereStr.Substring(5);
             selectStr = selectStr.Substring(1);
-            this.sql += selectStr + " from " + table.GetType().Name + " where " + whereStr;
-            this.cmd.CommandText = this.sql;
-            this.sqlConn.Open();
-            SqlDataReader sdr = this.cmd.ExecuteReader();
+            sql += selectStr + " from " + table.GetType().Name + " where " + whereStr;
+            cmd.CommandText = sql;
+            sqlConn.Open();
+            SqlDataReader sdr = cmd.ExecuteReader();
             sdr.Read();
             //int index = 0;
             for(int i = 0; i < fields.Length; i++)
@@ -105,17 +156,19 @@ namespace cdrf
             {
                 properties[i].SetValue(table, sdr[properties[i].Name]);
             }
-            this.sqlConn.Close();
+            sqlConn.Close();
         }
         /// <summary>
         /// 修改数据库表中的记录
         /// </summary>
         /// <param name="table"></param>
         /// <returns>成功返回true,失败返回false</returns>
-        public bool Update(Table table)
+        public bool Update(object table)
         {
+            SqlConnection sqlConn = new SqlConnection(connectionstring);
+            SqlCommand cmd = sqlConn.CreateCommand();
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table);
-            this.sql = "update " + table.GetType().Name + " set ";
+            string sql = "update " + table.GetType().Name + " set ";
             string setStr = "";
             string whereStr = "";
             foreach(Node node in lists[1])
@@ -126,11 +179,11 @@ namespace cdrf
             {
                 whereStr += " and " + node.name + "=" + node.value;
             }
-            this.sql += setStr.Substring(1) + " where " + whereStr.Substring(5);
-            this.cmd.CommandText = this.sql;
-            this.sqlConn.Open();
-            int n = this.cmd.ExecuteNonQuery();
-            this.sqlConn.Close();
+            sql += setStr.Substring(1) + " where " + whereStr.Substring(5);
+            cmd.CommandText = sql;
+            sqlConn.Open();
+            int n = cmd.ExecuteNonQuery();
+            sqlConn.Close();
             return n > 0;
         }
         /// <summary>
@@ -138,18 +191,20 @@ namespace cdrf
         /// </summary>
         /// <param name="table">某条记录的对象,继承自Table,只要[PrimaryKey]正确即可,其余成员均可为null或任意值</param>
         /// <returns>成功返回true,失败返回false</returns>
-        public bool Delete(Table table)
+        public bool Delete(object table)
         {
+            SqlConnection sqlConn = new SqlConnection(connectionstring);
+            SqlCommand cmd = sqlConn.CreateCommand();
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table);
-            this.sql = "delete from " + table.GetType().Name + " where ";
+            string sql = "delete from " + table.GetType().Name + " where ";
             string whereString = "";
             foreach (Node node in lists[0])
                 whereString += " and " + node.name + "=" + node.value;
-            this.sql += whereString.Substring(5);
-            this.cmd.CommandText = sql;
-            this.sqlConn.Open();
-            int n = this.cmd.ExecuteNonQuery();
-            this.sqlConn.Close();
+            sql += whereString.Substring(5);
+            cmd.CommandText = sql;
+            sqlConn.Open();
+            int n = cmd.ExecuteNonQuery();
+            sqlConn.Close();
             return n > 0;
         }
         /// <summary>
@@ -157,10 +212,12 @@ namespace cdrf
         /// </summary>
         /// <param name="table">某条记录的对象,继承自Table,[PrimaryKey]标记表示该成员为主关键字</param>
         /// <returns>插入成功返回true,失败返回false</returns>
-        public bool Insert(Table table)
+        public bool Insert(object table)
         {
+            SqlConnection sqlConn = new SqlConnection(connectionstring);
+            SqlCommand cmd = sqlConn.CreateCommand();
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table);
-            this.sql = "insert into " + table.GetType().Name;
+            string sql = "insert into " + table.GetType().Name;
             string name = "(";
             string value = "(";
             for (int i = 0; i < lists.Length; i++)
@@ -185,7 +242,7 @@ namespace cdrf
         /// </summary>
         /// <param name="table"></param>
         /// <returns></returns>
-        private LinkedList<Node>[] getFieldsAndAttributes(Table table)
+        private LinkedList<Node>[] getFieldsAndAttributes(object table)
         {
             LinkedList<Node>[] lists = new LinkedList<Node>[2];
             for (int i = 0; i < lists.Length; i++)
@@ -221,7 +278,7 @@ namespace cdrf
         /// <param name="fInfos"></param>
         /// <param name="pInfos"></param>
         /// <returns></returns>
-        private LinkedList<Node>[] getFieldsAndAttributes(Table table,out FieldInfo[] fInfos,out PropertyInfo[] pInfos)
+        private LinkedList<Node>[] getFieldsAndAttributes(object table,out FieldInfo[] fInfos,out PropertyInfo[] pInfos)
         {
             List<FieldInfo> datField = new List<FieldInfo>();
             List<PropertyInfo> datProperty = new List<PropertyInfo>();

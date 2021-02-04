@@ -4,9 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace cdrf
-{
-    public abstract class Table
-    {
+namespace cdrf {
+    public class SqlException :Exception {
+        public SqlException(string msg) : base(msg) {
+
+        }
     }
 }
