@@ -52,6 +52,8 @@ namespace cdrf {
         /// 包含有类名和连接字符串的xml节点
         /// </summary>
         public List<add> connectionNodes { get; set; }
+        public int threadNum { get; set; }
+        public int cachesize { get; set; }
         public static Config LoadConfig(string xmlFile) {
             Config c = new Config();
             StreamReader sr = new StreamReader(new FileStream(xmlFile,FileMode.Open));
@@ -63,6 +65,8 @@ namespace cdrf {
             foreach (XmlNode n in nodes) {
                 c.connectionNodes.Add(new add(n.Attributes["namespace"].Value,n.Attributes["filename"].Value,n.Attributes["classname"].Value,n.Attributes["connectionstring"].Value));
             }
+            c.threadNum = Convert.ToInt32(doc.SelectSingleNode("Config/threadnum").InnerText);
+            c.cachesize = Convert.ToInt32(doc.SelectSingleNode("Config/cachesize").InnerText);
             return c;
         }
     }

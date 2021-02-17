@@ -64,19 +64,17 @@ namespace cdrf {
         /// 进行初始化设置，并自动开始运行框架
         /// </summary>
         /// <param name="filename">配置XML文件名</param>
-        /// <param name="threadNum">工作线程数</param>
-        /// <param name="cachesize">缓存最大存储的元素个数</param>
-        public void init(string filename,int threadNum,int cachesize) {
-            if (cachesize < 1) throw new SqlException("缓存的最大元素个数不得小于1");
-            Cache.Size = cachesize;
+        public void init(string filename) {
             Config config = Config.LoadConfig(filename);
             //获取所有的连接字符串并逐一添加
             foreach (add n in config.connectionNodes) {
                 Connection.addConnection(n.Namespace,n.connectionstring,Assembly.LoadFrom(System.AppDomain.CurrentDomain.BaseDirectory+n.filename).GetType(n.classname));
             }
-            threadnum = threadNum;
-            tasksNum = new Semaphore(0,threadNum);
+            threadnum = config.threadNum;
+            tasksNum = new Semaphore(0,config.threadNum);
             queuereader = new Semaphore(1,1);
+            if (config.cachesize < 1) throw new SqlException("缓存的最大元素个数不得小于1");
+            Cache.Size = config.cachesize;
             start();
         }
         /// <summary>
