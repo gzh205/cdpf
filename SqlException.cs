@@ -5,7 +5,14 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace cdrf {
+    /// <summary>
+    /// 
+    /// </summary>
     public class SqlException :Exception {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="msg"></param>
         public SqlException(string msg) : base(msg) {
 
         }

@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace cdrf {
-    class LRUList<T> : LinkedList<T>{
+    internal class LRUList<T> : LinkedList<T>{
         public T this[int index] {
             get {
                 if (index >= this.Count)

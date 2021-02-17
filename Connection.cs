@@ -1,20 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Data.SqlClient;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
-namespace cdrf
-{
-    class Connection
+using System.Data.Common;
+
+namespace cdrf {
+    internal class Connection
     {
         /// <summary>
         /// 数据库连接池
         /// </summary>
-        private static Dictionary<string,string> connections = new Dictionary<string,string>();
+        private static Dictionary<string,DbInfo> connections = new Dictionary<string,DbInfo>();
         /// <summary>
         /// 用于处理线程池的信号量
         /// </summary>
@@ -24,50 +22,34 @@ namespace cdrf
         /// </summary>
         private static Queue<Tasks> queue = new Queue<Tasks>();
         /// <summary>
-        /// 正则表达式常量，用于匹配Database={数据库名}
-        /// </summary>
-        private const string pattern = @"(?<=(Database|database)[\s]*=[\s]*)[^;]+(?=;)";
-        /// <summary>
         /// 根据连接字符串创建一个新的Connection对象
         /// </summary>
+        /// <param name="Namespace">数据库表所在的命名空间</param>
         /// <param name="connectionString">连接字符串</param>
+        /// <param name="type">连接字符串所对应数据库Connector的类型</param>
         /// <returns>返回一个Connection对象</returns>
-        public static void addConnection(string connectionString) {
-            SqlConnection conn = new SqlConnection(connectionString);
-            Match mc = Regex.Match(connectionString,pattern);
-            string res = mc.Value;
-            connections.Add(res,connectionString);
+        public static void addConnection(string Namespace,string connectionString,Type type) {
+            connections.Add(Namespace,new DbInfo(connectionString,type));
         }
         /// <summary>
         /// 根据类型名获取连接
         /// </summary>
         /// <param name="type"></param>
         /// <returns></returns>
-        public static string getConnectionString(Type type) {
-            string[] dat = type.Namespace.Split('.');
-            string ns = dat[dat.Length - 1];
-            string res;
+        public static DbInfo getConnectionString(Type type) {
+            DbInfo res;
             try {
-                res = connections[ns];
+                res = connections[type.Namespace];
             } catch (KeyNotFoundException) {
-                throw new SqlException("找不到与该类型对应命名空间相同的连接字符串索引"+dat[dat.Length-1]);
+                throw new SqlException("找不到与该类型对应命名空间相同的连接字符串索引"+ type.Namespace);
             }
             return res;
         }
-        public string connectionstring { get; set; }
         /// <summary>
         /// 构造函数，不建议直接调用
         /// </summary>
-        /// <param name="sqlConn"></param>
-        public Connection(string connectingstring)
+        public Connection()
         {
-            this.connectionstring = connectionstring;
-        }
-        /// <summary>
-        /// 删除对象
-        /// </summary>
-        public void delete() {
-            this.connectionstring = null;
         }
         /// <summary>
         /// 自定义select查询的where语句部分,其中select与from均可省略,如不省略,该方法也会自动忽略
@@ -77,8 +59,9 @@ namespace cdrf
         /// <returns>返回所有符合where语句限定条件的记录</returns>
         public T[] SelectSome<T>(string where)
         {
-            SqlConnection sqlConn = new SqlConnection(connectionstring);
-            SqlCommand cmd = sqlConn.CreateCommand();
+            DbInfo info = getConnectionString(typeof(T));
+            DbConnection sqlConn = Activator.CreateInstance(info.sqlConn,info.connectionString) as DbConnection;
+            DbCommand cmd = sqlConn.CreateCommand();
             if (where == null)
                 where = "";
             if (where.Contains(where) && !where.Contains("'where'") && !where.Contains("\"where\""))
@@ -97,7 +80,7 @@ namespace cdrf
             sql += selectStr.Substring(1) + " from " + typeof(T).Name + where;
             cmd.CommandText = sql;
             sqlConn.Open();
-            SqlDataReader sdr = cmd.ExecuteReader();
+            DbDataReader sdr = cmd.ExecuteReader();
             fields = null;
             properties = null;
             while(sdr.Read())
@@ -124,8 +107,9 @@ namespace cdrf
         /// <param name="table">某条记录的对象,继承自Table,只要[PrimaryKey]有值即可,其余成员会自动填充完成</param>
         public void Select(object table)
         {
-            SqlConnection sqlConn = new SqlConnection(connectionstring);
-            SqlCommand cmd = sqlConn.CreateCommand();
+            DbInfo info = getConnectionString(table.GetType());
+            DbConnection sqlConn = Activator.CreateInstance(info.sqlConn,info.connectionString) as DbConnection;
+            DbCommand cmd = sqlConn.CreateCommand();
             FieldInfo[] fields;
             PropertyInfo[] properties;
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table,out fields,out properties);
@@ -145,7 +129,7 @@ namespace cdrf
             sql += selectStr + " from " + table.GetType().Name + " where " + whereStr;
             cmd.CommandText = sql;
             sqlConn.Open();
-            SqlDataReader sdr = cmd.ExecuteReader();
+            DbDataReader sdr = cmd.ExecuteReader();
             sdr.Read();
             //int index = 0;
             for(int i = 0; i < fields.Length; i++)
@@ -165,8 +149,9 @@ namespace cdrf
         /// <returns>成功返回true,失败返回false</returns>
         public bool Update(object table)
         {
-            SqlConnection sqlConn = new SqlConnection(connectionstring);
-            SqlCommand cmd = sqlConn.CreateCommand();
+            DbInfo info = getConnectionString(table.GetType());
+            DbConnection sqlConn = Activator.CreateInstance(info.sqlConn,info.connectionString) as DbConnection;
+            DbCommand cmd = sqlConn.CreateCommand();
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table);
             string sql = "update " + table.GetType().Name + " set ";
             string setStr = "";
@@ -193,8 +178,9 @@ namespace cdrf
         /// <returns>成功返回true,失败返回false</returns>
         public bool Delete(object table)
         {
-            SqlConnection sqlConn = new SqlConnection(connectionstring);
-            SqlCommand cmd = sqlConn.CreateCommand();
+            DbInfo info = getConnectionString(table.GetType());
+            DbConnection sqlConn = Activator.CreateInstance(info.sqlConn,info.connectionString) as DbConnection;
+            DbCommand cmd = sqlConn.CreateCommand();
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table);
             string sql = "delete from " + table.GetType().Name + " where ";
             string whereString = "";
@@ -214,8 +200,9 @@ namespace cdrf
         /// <returns>插入成功返回true,失败返回false</returns>
         public bool Insert(object table)
         {
-            SqlConnection sqlConn = new SqlConnection(connectionstring);
-            SqlCommand cmd = sqlConn.CreateCommand();
+            DbInfo info = getConnectionString(table.GetType());
+            DbConnection sqlConn = Activator.CreateInstance(info.sqlConn, info.connectionString) as DbConnection;
+            DbCommand cmd = sqlConn.CreateCommand();
             LinkedList<Node>[] lists = this.getFieldsAndAttributes(table);
             string sql = "insert into " + table.GetType().Name;
             string name = "(";

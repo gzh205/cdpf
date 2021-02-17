@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace cdrf
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class PrimaryKey:Attribute
     {
     }

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace cdrf
 {
-    class Node
+    internal class Node
     {
         public string name;
         public string value;

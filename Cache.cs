@@ -23,10 +23,10 @@ namespace cdrf {
         /// <summary>
         /// 数据库缓存
         /// </summary>
-        private LRUList<object> datas = new LRUList<object>();
-        private Dictionary<string,List<int>> mapping = new Dictionary<string,List<int>>();
-        private List<StringBuilder> DBnames = new List<StringBuilder>();
-        private List<StringBuilder> TableNames = new List<StringBuilder>();
+        public LRUList<object> datas = new LRUList<object>();
+        public Dictionary<string,List<int>> mapping = new Dictionary<string,List<int>>();
+        public List<StringBuilder> DBnames = new List<StringBuilder>();
+        public List<StringBuilder> TableNames = new List<StringBuilder>();
         /// <summary>
         /// 获取一个索引表
         /// </summary>
@@ -59,6 +59,7 @@ namespace cdrf {
         /// </summary>
         /// <param name="dbname">数据库名</param>
         /// <param name="tablename">表名</param>
+        /// <param name="obj">数据的对象</param>
         /// <returns>返回查询的结果，若没找到，则为空</returns>
         public object getData(string dbname,string tablename,object obj) {
             object result = null;
@@ -138,8 +139,8 @@ namespace cdrf {
             if (datas.Count >= Size) {
                 //删除数据以及对应索引
                 object tmp = datas[0];
-                string[] dat = tmp.GetType().Namespace.Split('.');
-                List<int> tmpindex = getMapping(dat[dat.Length - 1],tmp.GetType().Name);
+                string dat = tmp.GetType().Namespace;
+                List<int> tmpindex = getMapping(dat,tmp.GetType().Name);
                 if (tmpindex.Count != 0) {//索引表的长度不为0时，搜索缓存，否则直接返回null
                     for (int i = 0;i < tmpindex.Count;i++) {
                         if (equals(tmp,datas[tmpindex[i]])) {

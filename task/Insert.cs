@@ -6,14 +6,15 @@ using System.Threading.Tasks;
 
 namespace cdrf.task {
     class Insert : Tasks {
+        public Insert(object obj):base(obj) {
+        }
         public override object run(object obj) {
-            Connection c = new Connection(Connection.getConnectionString(obj.GetType()));
+            Connection c = new Connection();
             bool r = c.Insert(obj);
-            c.delete();
             if (r) {
-                string[] dat = obj.GetType().Namespace.Split('.');
+                string dat = obj.GetType().Namespace;
                 string name = obj.GetType().Name;
-                Cache.getInstance().addData(dat[dat.Length - 1],name,obj);
+                Cache.getInstance().addData(dat,name,obj);
             }
             return r;
         }

@@ -6,14 +6,15 @@ using System.Threading.Tasks;
 
 namespace cdrf.task {
     class Delete : Tasks {
+        public Delete(object obj) : base(obj) {
+        }
         public override object run(object obj) {
-            Connection c = new Connection(Connection.getConnectionString(obj.GetType()));
+            Connection c = new Connection();
             bool r = c.Delete(obj);
-            c.delete();
             if (r) {
-                string[] dat = obj.GetType().Namespace.Split('.');
+                string dat = obj.GetType().Namespace;
                 string name = obj.GetType().Name;
-                Cache.getInstance().removeData(dat[dat.Length - 1],name,obj);
+                Cache.getInstance().removeData(dat,name,obj);
             }
             return r;
         }
