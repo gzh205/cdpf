@@ -1,4 +1,4 @@
-﻿# cdrf  
+﻿# cdpf  
 Csharp Database Persistence Framework  
 ## cdrf是什么？  
 cdrf是一个数据持久化框架，该框架就是为了实现将内存中的对象模型转换为存储模型。即将指定的对象转化为SQL语句并且对数据库进行增删改查等操作。  
